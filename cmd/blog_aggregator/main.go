@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -19,7 +20,7 @@ func run() error {
 
 	db, err := sql.Open("postgres", cfg.Db_url)
 	if err != nil {
-		return fmt.Errorf("Error while opening database%w\n", err)
+		return fmt.Errorf("Error while opening database: %w\n", err)
 	}
 	defer db.Close()
 
@@ -29,7 +30,7 @@ func run() error {
 	cmds := returnCommands()
 
 	if len(os.Args) < 2 {
-		return fmt.Errorf("Error need at least 1 argument\n", err)
+		return errors.New("Error need at least 1 argument\n")
 	}
 
 	input_command := command{
