@@ -30,6 +30,7 @@ func returnCommands() commands {
 	cmds.Cmds["feeds"] = handlerListFeeds
 	cmds.Cmds["follow"] = middlewareLoggedIn(handlerFollow)
 	cmds.Cmds["following"] = middlewareLoggedIn(handlerFollowing)
+	cmds.Cmds["unfollow"] = middlewareLoggedIn(handlerUnfollow)
 
 	return cmds
 }
@@ -252,6 +253,30 @@ func handlerFollowing(s *state, cmd command, user database.User) error {
 	fmt.Printf("User %s follows feeds:\n", s.Cfg.Name)
 	for _, feed := range user_feeds {
 		fmt.Printf("  - %s\n", feed.Name_2)
+	}
+
+	return nil
+}
+
+func handlerUnfollow(s *state, cmd command, user database.User) error {
+	if len(cmd.Arguments) != 1 {
+		return errors.New("Command requires any 1 argument \"url\"")
+	}
+
+	ctx := context.Background()
+	url := cmd.Arguments[0]
+
+	feed, err := s.DbQ.FeedFromUrl(ctx, url)
+	if err != nil {
+		return fmt.Errorf("Feed with this url does not exist: %w", err)
+	}
+
+	err = s.DbQ.DeleteFeedFollow(ctx, database.DeleteFeedFollowParams{
+		ID:   user.ID,
+		ID_2: feed.ID,
+	})
+	if err != nil {
+		return fmt.Errorf("Error while deleting feed_follow: %w", err)
 	}
 
 	return nil
