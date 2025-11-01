@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
-	"time"
 
 	"github.com/arnicfil/go_blog_aggregator/internal/config"
 	"github.com/arnicfil/go_blog_aggregator/internal/database"
+	"github.com/arnicfil/go_blog_aggregator/internal/rss"
 )
 
 type commands struct {
@@ -23,6 +25,9 @@ func returnCommands() commands {
 	cmds.Cmds["register"] = handlerRegister
 	cmds.Cmds["reset"] = handlerReset
 	cmds.Cmds["users"] = handlerListUsers
+	cmds.Cmds["agg"] = handlerAggr
+	cmds.Cmds["addFeed"] = handlerAddFeed
+	cmds.Cmds["feeds"] = handlerListFeeds
 
 	return cmds
 }
@@ -122,6 +127,75 @@ func handlerListUsers(s *state, cmd command) error {
 			stringToPrint = stringToPrint + " (current)"
 		}
 		fmt.Printf(stringToPrint+"\n", user)
+	}
+
+	return nil
+}
+
+func handlerAggr(s *state, cmd command) error {
+	if len(cmd.Arguments) != 0 {
+		return errors.New("Command doesn't require arguments")
+	}
+	ctx := context.Background()
+	feed, err := rss.FetchFeed(ctx, "https://www.wagslane.dev/index.xml")
+	if err != nil {
+		return fmt.Errorf("Error while fetchin rssfeed in handlerAggr: %w", err)
+	}
+
+	fmt.Print(feed)
+	return nil
+}
+
+func handlerAddFeed(s *state, cmd command) error {
+	if len(cmd.Arguments) != 2 {
+		return errors.New("Command requires 2 arguments")
+	}
+
+	nameFeed := cmd.Arguments[0]
+	urlFeed := cmd.Arguments[1]
+
+	ctx := context.Background()
+
+	currentUser, err := s.DbQ.GetUser(ctx, s.Cfg.Name)
+	if err != nil {
+		return fmt.Errorf("Error retrieving current user in handlerListUsers: %w", err)
+	}
+
+	feed, err := s.DbQ.CreateFeed(ctx, database.CreateFeedParams{
+		ID:        uuid.New(),
+		Name:      nameFeed,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Url:       urlFeed,
+		UserID:    currentUser.ID,
+	})
+	if err != nil {
+		return fmt.Errorf("Error while creating new feed in database: %w", err)
+	}
+
+	fmt.Print(feed)
+
+	return nil
+}
+
+func handlerListFeeds(s *state, cmd command) error {
+	ctx := context.Background()
+	feeds, err := s.DbQ.ListFeeds(ctx)
+	if err != nil {
+		return fmt.Errorf("Error while requesting feeds from database in handlerListFeeds: %w", err)
+	}
+
+	for i, feed := range feeds {
+		feedUser, err := s.DbQ.RetrieveFeedUser(ctx, feed.Name)
+		if err != nil {
+			fmt.Printf("Error while retrieving user of feed %s: %v", feed.Name, err)
+			continue
+		}
+		fmt.Printf("Feed number %d\n", i+1)
+		fmt.Println("--------------------------")
+		fmt.Printf("Feed name: %s\n", feed.Name)
+		fmt.Printf("Feed url: %s\n", feed.Url)
+		fmt.Printf("Feed user: %s\n\n", feedUser)
 	}
 
 	return nil
