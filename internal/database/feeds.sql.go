@@ -55,6 +55,26 @@ func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (Feed, e
 	return i, err
 }
 
+const feedFromUrl = `-- name: FeedFromUrl :one
+SELECT id, name, created_at, updated_at, url, user_id FROM feeds
+WHERE
+	url = $1
+`
+
+func (q *Queries) FeedFromUrl(ctx context.Context, url string) (Feed, error) {
+	row := q.db.QueryRowContext(ctx, feedFromUrl, url)
+	var i Feed
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Url,
+		&i.UserID,
+	)
+	return i, err
+}
+
 const listFeeds = `-- name: ListFeeds :many
 SELECT id, name, created_at, updated_at, url, user_id FROM feeds
 `
@@ -87,18 +107,4 @@ func (q *Queries) ListFeeds(ctx context.Context) ([]Feed, error) {
 		return nil, err
 	}
 	return items, nil
-}
-
-const retrieveFeedUser = `-- name: RetrieveFeedUser :one
-SELECT users.name FROM users
-WHERE users.id IN (
-	SELECT feeds.user_id FROM feeds
-	WHERE feeds.name = $1
-)
-`
-
-func (q *Queries) RetrieveFeedUser(ctx context.Context, name string) (string, error) {
-	row := q.db.QueryRowContext(ctx, retrieveFeedUser, name)
-	err := row.Scan(&name)
-	return name, err
 }

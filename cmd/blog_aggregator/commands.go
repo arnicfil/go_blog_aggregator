@@ -28,6 +28,7 @@ func returnCommands() commands {
 	cmds.Cmds["agg"] = handlerAggr
 	cmds.Cmds["addFeed"] = handlerAddFeed
 	cmds.Cmds["feeds"] = handlerListFeeds
+	cmds.Cmds["follow"] = handlerFollow
 
 	return cmds
 }
@@ -179,6 +180,9 @@ func handlerAddFeed(s *state, cmd command) error {
 }
 
 func handlerListFeeds(s *state, cmd command) error {
+	if len(cmd.Arguments) != 0 {
+		return errors.New("Command doesn't require arguments")
+	}
 	ctx := context.Background()
 	feeds, err := s.DbQ.ListFeeds(ctx)
 	if err != nil {
@@ -197,6 +201,40 @@ func handlerListFeeds(s *state, cmd command) error {
 		fmt.Printf("Feed url: %s\n", feed.Url)
 		fmt.Printf("Feed user: %s\n\n", feedUser)
 	}
+
+	return nil
+}
+
+func handlerFollow(s *state, cmd command) error {
+	if len(cmd.Arguments) != 1 {
+		return errors.New("Command requires 1 argument")
+	}
+
+	ctx := context.Background()
+
+	url := cmd.Arguments[0]
+	feed, err := s.DbQ.FeedFromUrl(ctx, url)
+	if err != nil {
+		return fmt.Errorf("Error while requesting feed with url in handlerFollow: %w", err)
+	}
+
+	user, err := s.DbQ.GetUser(ctx, s.Cfg.Name)
+	if err != nil {
+		return fmt.Errorf("Error while requesting user in handlerFollow: %w", err)
+	}
+
+	_, err = s.DbQ.CreateFeedFollow(ctx, database.CreateFeedFollowParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		UserID:    user.ID,
+		FeedID:    feed.ID,
+	})
+	if err != nil {
+		return fmt.Errorf("Error while creating feed_follow relation in handlerFollow: %w", err)
+	}
+
+	fmt.Printf("User %s successfully follow feed %s\n", user.Name, feed.Name)
 
 	return nil
 }

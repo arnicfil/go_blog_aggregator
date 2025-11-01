@@ -13,9 +13,7 @@ returning *;
 -- name: ListFeeds :many
 SELECT * FROM feeds;
 
--- name: RetrieveFeedUser :one
-SELECT users.name FROM users
-WHERE users.id IN (
-	SELECT feeds.user_id FROM feeds
-	WHERE feeds.name = $1
-);
+-- name: FeedFromUrl :one
+SELECT * FROM feeds
+WHERE
+	url = $1;
