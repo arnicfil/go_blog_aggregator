@@ -26,9 +26,10 @@ func returnCommands() commands {
 	cmds.Cmds["reset"] = handlerReset
 	cmds.Cmds["users"] = handlerListUsers
 	cmds.Cmds["agg"] = handlerAggr
-	cmds.Cmds["addFeed"] = handlerAddFeed
+	cmds.Cmds["addFeed"] = middlewareLoggedIn(handlerAddFeed)
 	cmds.Cmds["feeds"] = handlerListFeeds
-	cmds.Cmds["follow"] = handlerFollow
+	cmds.Cmds["follow"] = middlewareLoggedIn(handlerFollow)
+	cmds.Cmds["following"] = middlewareLoggedIn(handlerFollowing)
 
 	return cmds
 }
@@ -147,7 +148,7 @@ func handlerAggr(s *state, cmd command) error {
 	return nil
 }
 
-func handlerAddFeed(s *state, cmd command) error {
+func handlerAddFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.Arguments) != 2 {
 		return errors.New("Command requires 2 arguments")
 	}
@@ -157,22 +158,25 @@ func handlerAddFeed(s *state, cmd command) error {
 
 	ctx := context.Background()
 
-	currentUser, err := s.DbQ.GetUser(ctx, s.Cfg.Name)
-	if err != nil {
-		return fmt.Errorf("Error retrieving current user in handlerListUsers: %w", err)
-	}
-
 	feed, err := s.DbQ.CreateFeed(ctx, database.CreateFeedParams{
 		ID:        uuid.New(),
 		Name:      nameFeed,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 		Url:       urlFeed,
-		UserID:    currentUser.ID,
+		UserID:    user.ID,
 	})
 	if err != nil {
 		return fmt.Errorf("Error while creating new feed in database: %w", err)
 	}
+
+	_, err = s.DbQ.CreateFeedFollow(ctx, database.CreateFeedFollowParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		UserID:    user.ID,
+		FeedID:    feed.ID,
+	})
 
 	fmt.Print(feed)
 
@@ -205,7 +209,7 @@ func handlerListFeeds(s *state, cmd command) error {
 	return nil
 }
 
-func handlerFollow(s *state, cmd command) error {
+func handlerFollow(s *state, cmd command, user database.User) error {
 	if len(cmd.Arguments) != 1 {
 		return errors.New("Command requires 1 argument")
 	}
@@ -216,11 +220,6 @@ func handlerFollow(s *state, cmd command) error {
 	feed, err := s.DbQ.FeedFromUrl(ctx, url)
 	if err != nil {
 		return fmt.Errorf("Error while requesting feed with url in handlerFollow: %w", err)
-	}
-
-	user, err := s.DbQ.GetUser(ctx, s.Cfg.Name)
-	if err != nil {
-		return fmt.Errorf("Error while requesting user in handlerFollow: %w", err)
 	}
 
 	_, err = s.DbQ.CreateFeedFollow(ctx, database.CreateFeedFollowParams{
@@ -237,6 +236,36 @@ func handlerFollow(s *state, cmd command) error {
 	fmt.Printf("User %s successfully follow feed %s\n", user.Name, feed.Name)
 
 	return nil
+}
+
+func handlerFollowing(s *state, cmd command, user database.User) error {
+	if len(cmd.Arguments) != 0 {
+		return errors.New("Command doesnt require any arguments")
+	}
+	ctx := context.Background()
+
+	user_feeds, err := s.DbQ.GetFeedFollowsForUser(ctx, user.Name)
+	if err != nil {
+		return fmt.Errorf("Error while requesting feeds for user %s: %w", s.Cfg.Name, err)
+	}
+
+	fmt.Printf("User %s follows feeds:\n", s.Cfg.Name)
+	for _, feed := range user_feeds {
+		fmt.Printf("  - %s\n", feed.Name_2)
+	}
+
+	return nil
+}
+
+func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error) func(*state, command) error {
+	return func(s *state, cmd command) error {
+		user, err := s.DbQ.GetUser(context.Background(), s.Cfg.Name)
+		if err != nil {
+			return fmt.Errorf("Error in middlewareLoggedIn: %w", err)
+		}
+
+		return handler(s, cmd, user)
+	}
 }
 
 func (c *commands) run(s *state, cmd command) error {
