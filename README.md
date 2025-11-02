@@ -37,7 +37,10 @@ cd go_blog_aggregator
 
 You need to create a database and a user for the application.
 
+## Linux
+
 ```sql
+
 -- Connect to PostgreSQL as a superuser (e.g., 'postgres')
 psql -U postgres
 
@@ -73,7 +76,7 @@ Use `goose` to apply the database schema. The migration files are located in the
 # From the root of the project directory
 goose -dir "sql/schema" postgres "postgres://gator_user:your_password@localhost:5432/gator?sslmode=disable" up
 ```
-This will create the `users`, `feeds`, and `feeds_follow` tables.
+This will create the `users`, `feeds`, `posts`, and `feeds_follow` tables.
 
 ## Usage
 
