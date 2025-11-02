@@ -14,16 +14,12 @@ import (
 )
 
 const createFeed = `-- name: CreateFeed :one
-INSERT INTO feeds (id,name, created_at, updated_at, url, user_id)
-VALUES (
-	$1,
-	$2,
-	$3,
-	$4,
-	$5,
-	$6
-)
-returning id, name, created_at, updated_at, url, user_id, last_fetched_at
+INSERT INTO
+    feeds (id, name, created_at, updated_at, url, user_id)
+VALUES
+    ($1, $2, $3, $4, $5, $6)
+RETURNING
+    id, name, created_at, updated_at, url, user_id, last_fetched_at
 `
 
 type CreateFeedParams struct {
@@ -58,9 +54,12 @@ func (q *Queries) CreateFeed(ctx context.Context, arg CreateFeedParams) (Feed, e
 }
 
 const feedFromUrl = `-- name: FeedFromUrl :one
-SELECT id, name, created_at, updated_at, url, user_id, last_fetched_at FROM feeds
+SELECT
+    id, name, created_at, updated_at, url, user_id, last_fetched_at
+FROM
+    feeds
 WHERE
-	url = $1
+    url = $1
 `
 
 func (q *Queries) FeedFromUrl(ctx context.Context, url string) (Feed, error) {
@@ -79,13 +78,15 @@ func (q *Queries) FeedFromUrl(ctx context.Context, url string) (Feed, error) {
 }
 
 const getNextFeedToFetch = `-- name: GetNextFeedToFetch :one
-SELECT id, name, created_at, updated_at, url, user_id, last_fetched_at
-FROM 
-	feeds
+SELECT
+    id, name, created_at, updated_at, url, user_id, last_fetched_at
+FROM
+    feeds
 ORDER BY
-	last_fetched_at ASC NULLS FIRST,
-	updated_AT ASC
-LIMIT 1
+    last_fetched_at ASC NULLS FIRST,
+    updated_AT ASC
+LIMIT
+    1
 `
 
 func (q *Queries) GetNextFeedToFetch(ctx context.Context) (Feed, error) {
@@ -104,7 +105,10 @@ func (q *Queries) GetNextFeedToFetch(ctx context.Context) (Feed, error) {
 }
 
 const listFeeds = `-- name: ListFeeds :many
-SELECT id, name, created_at, updated_at, url, user_id, last_fetched_at FROM feeds
+SELECT
+    id, name, created_at, updated_at, url, user_id, last_fetched_at
+FROM
+    feeds
 `
 
 func (q *Queries) ListFeeds(ctx context.Context) ([]Feed, error) {
@@ -139,10 +143,13 @@ func (q *Queries) ListFeeds(ctx context.Context) ([]Feed, error) {
 }
 
 const markFeedFetched = `-- name: MarkFeedFetched :exec
-UPDATE feeds
-SET updated_at = $2, last_fetched_at = $3
+UPDATE
+    feeds
+SET
+    updated_at = $2,
+    last_fetched_at = $3
 WHERE
-	feeds.id = $1
+    feeds.id = $1
 `
 
 type MarkFeedFetchedParams struct {
