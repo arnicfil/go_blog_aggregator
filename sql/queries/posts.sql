@@ -17,13 +17,15 @@ RETURNING
 
 -- name: GetPostsForUser :many
 SELECT
-    *
+    posts.name,
+    posts.description,
+    posts.published_at
 FROM
     posts
     INNER JOIN feeds_follow ON posts.feed_id = feeds_follow.feed_id
     INNER JOIN users ON feeds_follow.user_id = users.id
 WHERE
-    users.name = $1
+    users.id = $1
 ORDER BY
     posts.published_at DESC
 LIMIT

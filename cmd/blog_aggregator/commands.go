@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,6 +33,7 @@ func returnCommands() commands {
 	cmds.Cmds["follow"] = middlewareLoggedIn(handlerFollow)
 	cmds.Cmds["following"] = middlewareLoggedIn(handlerFollowing)
 	cmds.Cmds["unfollow"] = middlewareLoggedIn(handlerUnfollow)
+	cmds.Cmds["browse"] = middlewareLoggedIn(handlerBrowse)
 
 	return cmds
 }
@@ -288,6 +290,56 @@ func handlerUnfollow(s *state, cmd command, user database.User) error {
 	return nil
 }
 
+func handlerBrowse(s *state, cmd command, user database.User) error {
+	argLen := len(cmd.Arguments)
+	if !(argLen == 1 || argLen == 2) {
+		return errors.New("Command requires any 1 or 2 arguments feed, limit")
+	}
+
+	var limit int32
+	if argLen != 2 {
+		limit = 2
+	} else {
+		lim, err := strconv.Atoi(cmd.Arguments[1])
+		if err != nil {
+			fmt.Printf("Error while parsing limit argument, switching to default (2): %v", err)
+			limit = 2
+		} else {
+			limit = int32(lim)
+		}
+	}
+
+	ctx := context.Background()
+	posts, err := s.DbQ.GetPostsForUser(ctx, database.GetPostsForUserParams{
+		ID:    user.ID,
+		Limit: limit,
+	})
+	if err != nil {
+		return fmt.Errorf("Error while retrieving posts: %w", err)
+	}
+
+	for _, post := range posts {
+		fmt.Printf("**%s**\n", post.Name)
+		var pub string
+		if post.PublishedAt.Valid {
+			pub = post.PublishedAt.Time.String()
+		} else {
+			pub = "unknown"
+		}
+
+		var desc string
+		if post.Description.Valid {
+			desc = post.Description.String
+		} else {
+			desc = "none"
+		}
+
+		fmt.Printf("published at %s\n", pub)
+		fmt.Printf("Description:\n%s\n\n", desc)
+	}
+
+	return nil
+}
 func middlewareLoggedIn(handler func(s *state, cmd command, user database.User) error) func(*state, command) error {
 	return func(s *state, cmd command) error {
 		user, err := s.DbQ.GetUser(context.Background(), s.Cfg.Name)
@@ -334,9 +386,31 @@ func scrapeFeeds(s *state) error {
 		return fmt.Errorf("Error while fetching feed from internet: %w", err)
 	}
 
-	fmt.Printf("Items in feed %s\n", feed.Channel.Title)
-	for i, item := range feed.Channel.Item {
-		fmt.Printf("Item %d is %s\n", i, item.Title)
+	for _, item := range feed.Channel.Item {
+		/*
+			parsedTime, err := time.Parse(,item.PubDate)
+			val := true
+			if err != nil {
+				fmt.Printf("Error while parsing pubDate: %v", err)
+				val = false
+			}
+		*/
+		_, err := s.DbQ.CreatePost(ctx, database.CreatePostParams{
+			ID:        uuid.New(),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+			Name:      item.Title,
+			Url:       item.Link,
+			Description: sql.NullString{
+				String: item.Description,
+				Valid:  true,
+			},
+			FeedID: nextFeed.ID,
+		})
+
+		if err != nil {
+			fmt.Printf("Error while inserting post %s into database: %v", item.Title, err)
+		}
 	}
 
 	return nil

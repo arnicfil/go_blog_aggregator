@@ -69,13 +69,15 @@ func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (Post, e
 
 const getPostsForUser = `-- name: GetPostsForUser :many
 SELECT
-    posts.id, posts.created_at, posts.updated_at, posts.name, url, description, published_at, posts.feed_id, feeds_follow.id, feeds_follow.created_at, feeds_follow.updated_at, user_id, feeds_follow.feed_id, users.id, users.name, users.created_at, users.updated_at
+    posts.name,
+    posts.description,
+    posts.published_at
 FROM
     posts
     INNER JOIN feeds_follow ON posts.feed_id = feeds_follow.feed_id
     INNER JOIN users ON feeds_follow.user_id = users.id
 WHERE
-    users.name = $1
+    users.id = $1
 ORDER BY
     posts.published_at DESC
 LIMIT
@@ -83,32 +85,18 @@ LIMIT
 `
 
 type GetPostsForUserParams struct {
-	Name  string
+	ID    uuid.UUID
 	Limit int32
 }
 
 type GetPostsForUserRow struct {
-	ID          uuid.UUID
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
 	Name        string
-	Url         string
 	Description sql.NullString
 	PublishedAt sql.NullTime
-	FeedID      uuid.UUID
-	ID_2        uuid.UUID
-	CreatedAt_2 time.Time
-	UpdatedAt_2 time.Time
-	UserID      uuid.UUID
-	FeedID_2    uuid.UUID
-	ID_3        uuid.UUID
-	Name_2      string
-	CreatedAt_3 time.Time
-	UpdatedAt_3 time.Time
 }
 
 func (q *Queries) GetPostsForUser(ctx context.Context, arg GetPostsForUserParams) ([]GetPostsForUserRow, error) {
-	rows, err := q.db.QueryContext(ctx, getPostsForUser, arg.Name, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, getPostsForUser, arg.ID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -116,25 +104,7 @@ func (q *Queries) GetPostsForUser(ctx context.Context, arg GetPostsForUserParams
 	var items []GetPostsForUserRow
 	for rows.Next() {
 		var i GetPostsForUserRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Name,
-			&i.Url,
-			&i.Description,
-			&i.PublishedAt,
-			&i.FeedID,
-			&i.ID_2,
-			&i.CreatedAt_2,
-			&i.UpdatedAt_2,
-			&i.UserID,
-			&i.FeedID_2,
-			&i.ID_3,
-			&i.Name_2,
-			&i.CreatedAt_3,
-			&i.UpdatedAt_3,
-		); err != nil {
+		if err := rows.Scan(&i.Name, &i.Description, &i.PublishedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
